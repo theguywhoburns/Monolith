@@ -1,0 +1,45 @@
+{
+  // Force the clangd extension to use the devenv-managed clangd
+  // (clang-tools from the pinned nixpkgs input) instead of its own
+  // downloaded clangd 22, which pulls in a foreign -resource-dir and
+  // mismatches the compile_commands.json clang wrapper.
+  "clangd.path": "${workspaceFolder}/.devenv/profile/bin/clangd",
+
+  // clangd can only see the module include dirs and the kernel UAPI headers
+  // through build/compile_commands.json, so make sure the tree exists as soon
+  // as the folder is opened. LINUX_HEADERS comes from the devenv extension.
+  "cmake.configureOnOpen": true,
+  "cmake.buildDirectory": "${workspaceFolder}/build",
+
+  // The devenv VS Code extension only injects the environment into
+  // terminals, shell tasks and ${env:VAR}. CMake Tools spawns cmake as a
+  // plain process, so forward the devenv env explicitly. Without this,
+  // pkg_check_modules() cannot find wayland-client and FindVulkan cannot
+  // find libvulkan.
+  "cmake.configureEnvironment": {
+    "PATH": "${env:PATH}",
+    "PKG_CONFIG_PATH": "${env:PKG_CONFIG_PATH}",
+    "CMAKE_INCLUDE_PATH": "${env:CMAKE_INCLUDE_PATH}",
+    "CMAKE_LIBRARY_PATH": "${env:CMAKE_LIBRARY_PATH}",
+    "CC": "${env:CC}",
+    "CXX": "${env:CXX}",
+    "LINUX_HEADERS": "${env:LINUX_HEADERS}",
+    "VULKAN_SDK": "${env:VULKAN_SDK}",
+    "VK_LAYER_PATH": "${env:VK_LAYER_PATH}",
+    "VK_ADD_LAYER_PATH": "${env:VK_ADD_LAYER_PATH}",
+    "XDG_DATA_DIRS": "${env:XDG_DATA_DIRS}"
+  },
+  "cmake.buildEnvironment": {
+    "PATH": "${env:PATH}",
+    "PKG_CONFIG_PATH": "${env:PKG_CONFIG_PATH}",
+    "CMAKE_INCLUDE_PATH": "${env:CMAKE_INCLUDE_PATH}",
+    "CMAKE_LIBRARY_PATH": "${env:CMAKE_LIBRARY_PATH}",
+    "CC": "${env:CC}",
+    "CXX": "${env:CXX}",
+    "LINUX_HEADERS": "${env:LINUX_HEADERS}",
+    "VULKAN_SDK": "${env:VULKAN_SDK}",
+    "VK_LAYER_PATH": "${env:VK_LAYER_PATH}",
+    "VK_ADD_LAYER_PATH": "${env:VK_ADD_LAYER_PATH}",
+    "XDG_DATA_DIRS": "${env:XDG_DATA_DIRS}"
+  }
+}

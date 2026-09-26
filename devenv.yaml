@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://devenv.sh/devenv.schema.json
+
+inputs:
+  nixpkgs:
+    url: github:cachix/devenv-nixpkgs/rolling
+
+# Tasks live in devenv.nix under the `tasks` option:
+#   devenv tasks list
+#   devenv tasks run monolith:run
+#   devenv tasks run monolith:check
+#   devenv tasks run monolith:disasm
+#   devenv tasks run monolith:clean

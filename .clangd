@@ -1,0 +1,13 @@
+CompileFlags:
+    # Everything else comes from build/compile_commands.json, which is the
+    # single source of truth for the freestanding flags and for the kernel UAPI
+    # include path. Both are absolute there, which matters: without a compile
+    # command clangd falls back to treating the *source file's* directory as
+    # the working directory, so a relative -I in this file would resolve
+    # against src/ and find nothing.
+    #
+    # That makes the compile database a hard requirement for the editor. It is
+    # kept in existence by two things:
+    #   - devenv task monolith:configure, which runs before devenv:enterShell
+    #   - "cmake.configureOnOpen" in .vscode/settings.json
+    CompilationDatabase: "build"
