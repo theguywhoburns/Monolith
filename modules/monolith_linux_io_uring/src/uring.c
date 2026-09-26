@@ -17,14 +17,17 @@
  * EXT_ARG is the documented modern way to pass a timeout and it is what
  * essentially every io_uring example uses. It does not work here. The legacy
  * bare struct __kernel_timespec is tried first because that is correct on a
- * mainline kernel, and io_uring_wait falls back to a bounded poll when the
+ * mainline kernel, and io_uring_wait falls back to a bounded sleep when the
  * kernel answers EINVAL.
  *
- * The fallback is a spin, not a timed sleep: this project has no clock source,
- * so there is no honest way to wait for a duration, and blocking indefinitely
- * would ignore the caller's timeout and could hang forever. The cap keeps it
- * bounded. Completions for a regular file land essentially immediately, so the
- * spin almost never iterates.
+ * The fallback sleeps in short slices and polls the CQ between them, bounded by
+ * the caller's timeout. It was originally a spin over the CQ counter instead,
+ * which is wrong: a spin does not wait, it just burns the same order of
+ * magnitude of time as the operation it is waiting for and then gives up. That
+ * showed up as a roughly 1-in-100 failure of the async checker, where a regular
+ * file read had not completed yet and the wait reported nothing ready.
+ * nanosleep is what makes the fallback correct - the kernel does the timing, so
+ * having no clock source in this project is not an obstacle.
  *
  * If this ever runs on a stock kernel, delete the fallback. Do not "fix" it by
  * switching to EXT_ARG without measuring first - that is the path that looks
@@ -36,8 +39,12 @@
 
 #include <monolith/sys/linux/io_uring.h>
 
-/* Cap for the degraded wait path. Arbitrary but bounded; see io_uring_wait. */
-#define IO_URING_FALLBACK_SPINS 100000u
+/*
+ * How long the degraded wait path sleeps between polls of the CQ. Short enough
+ * that a completion is not reported noticeably late, long enough that the sleep
+ * syscall's own overhead does not dominate. See io_uring_wait.
+ */
+#define IO_URING_FALLBACK_SLICE_NS 1000000LL /* 1ms */
 
 /*
  * The ring's head/tail/mask live at byte offsets inside the mapped regions.
@@ -326,7 +333,7 @@ int io_uring_wait(io_uring_ring *r, int timeout_ms) {
 
   {
     struct __kernel_timespec ts;
-    unsigned spins;
+    unsigned elapsed_ms;
 
     /* The correct API for a mainline kernel. See the note at the top. */
     ts.tv_sec = (__kernel_time64_t)(timeout_ms / 1000);
@@ -345,11 +352,21 @@ int io_uring_wait(io_uring_ring *r, int timeout_ms) {
       return (int)rc;
     }
 
-    /* This kernel will not do a timed wait. Poll instead, bounded. */
-    for (spins = 0; spins < IO_URING_FALLBACK_SPINS; spins++) {
+    /* This kernel will not do a timed wait, but the kernel can still do the
+     * waiting for us: nanosleep blocks, so a run of short sleeps is a real
+     * bounded wait and needs no clock source here. Counting the sleeps bounds
+     * the total by the caller's timeout. The CQ is checked before the first
+     * sleep, so an op that has already completed returns without sleeping. */
+    for (elapsed_ms = 0; elapsed_ms < (unsigned)timeout_ms; elapsed_ms++) {
+      struct __kernel_timespec nap;
+
       if (io_uring_cq_ready(r) > 0) {
         return 0;
       }
+
+      nap.tv_sec = 0;
+      nap.tv_nsec = IO_URING_FALLBACK_SLICE_NS;
+      (void)nanosleep(&nap);
     }
   }
 

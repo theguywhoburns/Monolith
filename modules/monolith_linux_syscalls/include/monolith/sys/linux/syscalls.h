@@ -22,9 +22,10 @@
 #ifndef MONOLITH_SYS_LINUX_SYSCALLS_H
 #define MONOLITH_SYS_LINUX_SYSCALLS_H
 
-#include <asm/stat.h>  /* struct stat: the kernel's own x86-64 layout */
-#include <asm/unistd.h> /* __NR_write, __NR_open, ... */
-#include <stddef.h>     /* compiler freestanding header: size_t, NULL */
+#include <asm/stat.h>            /* struct stat: the kernel's own x86-64 layout */
+#include <asm/unistd.h>           /* __NR_write, __NR_open, ... */
+#include <linux/time_types.h>     /* struct __kernel_timespec */
+#include <stddef.h>               /* compiler freestanding header: size_t, NULL */
 
 /* Relative-to-cwd sentinel for *at() calls. */
 #define AT_FDCWD (-100)
@@ -169,6 +170,22 @@ static inline long rename(const char *from, const char *to) {
  * struct linux_dirent64. Returns bytes read, or 0 at end of directory. */
 static inline ssize_t getdents64(int fd, void *dirp, size_t count) {
   return (ssize_t)syscall3(__NR_getdents64, fd, (long)dirp, (long)count);
+}
+
+/* Time */
+
+/*
+ * Sleeps for the interval in req, or until interrupted by a signal. Without a
+ * signal handler installed the only source of interruption is a kill from
+ * elsewhere, which is not a case this program has, so a short return is
+ * treated as a full sleep. Returns 0, or a negative -errno.
+ *
+ * This exists because there is no other way to yield the CPU. Spinning on a
+ * shared memory counter is not waiting; see io_uring_wait for the case that
+ * made this necessary.
+ */
+static inline long nanosleep(const struct __kernel_timespec *req) {
+  return syscall2(__NR_nanosleep, (long)req, 0);
 }
 
 /* Memory */
